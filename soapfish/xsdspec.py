@@ -41,6 +41,11 @@ class Restriction(xsd.ComplexType):
     fractionDigits = xsd.Element(RestrictionValue)
     totalDigits = xsd.Element(RestrictionValue)
 
+    length = xsd.Element(RestrictionValue)
+    minLength = xsd.Element(RestrictionValue)
+    maxLength = xsd.Element(RestrictionValue)
+    whiteSpace = xsd.Element(RestrictionValue)
+
     def to_python(self):
         enum_values = map(lambda e: '\'%s\'' % e.value, self.enumerations)
         return '[%s]' % ','.join(enum_values)
@@ -136,6 +141,10 @@ class Import(xsd.ComplexType):
     namespace = xsd.Attribute(xsd.String)
 
 
+class Include(xsd.ComplexType):
+    schemaLocation = xsd.Attribute(xsd.String)
+
+
 class Schema(xsd.ComplexType):
     NAMESPACE = ns.xsd
     targetNamespace = xsd.Attribute(xsd.String)
@@ -144,6 +153,7 @@ class Schema(xsd.ComplexType):
         use=xsd.Use.OPTIONAL, default='unqualified',
     )
     imports = xsd.ListElement(Import, 'import')
+    includes = xsd.ListElement(Include, 'include')
     simpleTypes = xsd.ListElement(SimpleType, 'simpleType')
     groups = xsd.ListElement(Group, 'group')
     attributeGroups = xsd.ListElement(AttributeGroup, 'attributeGroup')

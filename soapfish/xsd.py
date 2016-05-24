@@ -41,26 +41,29 @@ For information on XML schema validation:
 
 
 from copy import copy
-from decimal import Decimal
+from decimal import Decimal as _Decimal
 from datetime import datetime
 import functools
+import itertools
 import logging
 import re
 
+import iso8601
+# pyiso8601 does not export UTC/FixedOffset via their main module
+# (fixed in 031688e, after 0.1.11)
+from iso8601.iso8601 import UTC, FixedOffset
 from lxml import etree
 import six
 
 from . import namespaces as ns
 from .compat import basestring
-from .lib import iso8601
-from .lib.iso8601 import UTC, FixedOffset
 from .utils import timezone_offset_to_string
 from .xsd_types import XSDDate
 
 logger = logging.getLogger(__name__)
 NIL = object()
 
-UNBOUNDED = Decimal('infinity')
+UNBOUNDED = _Decimal('infinity')
 
 
 class CallStyle(object):
@@ -140,21 +143,39 @@ class SimpleType(Type):
 
 class String(SimpleType):
 
-    enumeration = None  # To be defined in child.
-    pattern = None      # To be defined in child.
+    # To be defined in children.
+    enumeration = None
+    pattern = None
+    length = None
+    minLength = None
+    maxLength = None
+    whiteSpace = None
 
-    def __init__(self, enumeration=None, pattern=None):
+    def __init__(self, enumeration=None, pattern=None,
+                 length=None, minLength=None, maxLength=None, whiteSpace=None):
+        # Override static values
         if enumeration is not None:
-            self.enumeration = enumeration  # Override static value
+            self.enumeration = enumeration
         if pattern is not None:
-            self.pattern = pattern  # Override static value
+            self.pattern = pattern
+        if length is not None:
+            self.length = length
+        if minLength is not None:
+            self.minLength = minLength
+        if maxLength is not None:
+            self.maxLength = maxLength
+        if whiteSpace is not None:
+            self.whiteSpace = whiteSpace
 
     def accept(self, value):
         if value is None:
             return None
 
+
         if not isinstance(value, basestring):
             raise ValueError("Value %r for class '%s'." % (value, self.__class__.__name__))
+
+        value = self._clean_whitespace(value)
 
         if self.pattern:
             pattern = self.pattern + '$'
@@ -165,6 +186,18 @@ class String(SimpleType):
             if not (value in self.enumeration):
                 raise ValueError("Value '%s' not in list %s." % (value, self.enumeration))
 
+        if self.length:
+            if len(value) != self.length:
+                raise ValueError("Value '%s' length %s expected." % (value, self.length))
+
+        if self.minLength:
+            if len(value) < self.minLength:
+                raise ValueError("Value '%s' minLength %s expected." % (value, self.minLength))
+
+        if self.maxLength:
+            if len(value) > self.maxLength:
+                raise ValueError("Value '%s' maxLength %s expected." % (value, self.maxLength))
+
         return value
 
     def xmlvalue(self, value):
@@ -172,6 +205,19 @@ class String(SimpleType):
 
     def pythonvalue(self, xmlvalue):
         return xmlvalue
+
+    def _clean_whitespace(self, value):
+        if self.whiteSpace == "preserve":
+            # do nothing, just preserve the value
+            pass
+        elif self.whiteSpace == "replace":
+            # replace line feeds, tabs, spaces, and carriage returns with whitespaces
+            value = re.sub(r"[\t\r\n\s]", " ", value)
+        elif self.whiteSpace == "collapse":
+            # clean line feeds, tabs, spaces, and carriage returns with one whitespace
+            value = re.sub(r"[\t\r\n\s]+", " ", value)
+
+        return value
 
 
 class Boolean(SimpleType):
@@ -365,6 +411,8 @@ class Decimal(SimpleType):
     def accept(self, value):
         if value is None:
             return None
+        elif isinstance(value, _Decimal):
+            value = str(value)
         elif isinstance(value, six.integer_types) or isinstance(value, float):
             pass  # value is just value
         elif isinstance(value, basestring):
@@ -1100,7 +1148,7 @@ class Schema(object):
 
     def __init__(self, targetNamespace, elementFormDefault=ElementFormDefault.UNQUALIFIED,
                  simpleTypes=[], attributeGroups=[], groups=[], complexTypes=[], elements={},
-                 imports=(), location=None):
+                 imports=(), includes=(), location=None):
         '''
         :param targetNamespace: string, xsd namespace URL.
         :param elementFormDefault: unqualified/qualified. Defines if namespaces
@@ -1120,6 +1168,7 @@ class Schema(object):
         self.complexTypes = complexTypes
         self.elements = elements
         self.imports = imports
+        self.includes = includes
         self.location = location
 
         self.__init_schema(self.simpleTypes)
@@ -1152,8 +1201,8 @@ class Schema(object):
         if name in self.elements:
             return self.elements[name]
 
-        for _import in self.imports:
-            element = _import.get_element_by_name(name)
+        for i in itertools.chain(self.imports, self.includes):
+            element = i.get_element_by_name(name)
             if element is not None:
                 return element
 

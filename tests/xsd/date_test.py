@@ -2,12 +2,13 @@
 
 from datetime import date as Date, datetime as DateTime, timedelta as TimeDelta, tzinfo
 
+# pyiso8601 does not export UTC/FixedOffset via their main module
+# (fixed in 031688e, after 0.1.11)
+from iso8601.iso8601 import FixedOffset, UTC
 from lxml import etree
+from pythonic_testcase import *
 
 from soapfish import xsd
-from soapfish.lib import iso8601
-from soapfish.lib.iso8601 import UTC, FixedOffset
-from soapfish.lib.pythonic_testcase import *
 from soapfish.testutil import SimpleTypeTestCase
 from soapfish.xsd_types import XSDDate
 
@@ -23,7 +24,7 @@ class DateTest(SimpleTypeTestCase):
         assert_equals(b'<foo><bar>2001-10-26</bar></foo>', xml)
 
     def test_rendering_timezones(self):
-        fake_tz = iso8601.FixedOffset(1, 15, 'dummy zone')
+        fake_tz = FixedOffset(1, 15, 'dummy zone')
         date = XSDDate(2001, 10, 26, tzinfo=fake_tz)
         rendered_xml = xsd.Date().xmlvalue(date)
         assert_equals('2001-10-26+01:15', rendered_xml)
@@ -36,7 +37,7 @@ class DateTest(SimpleTypeTestCase):
     def test_parsing_utctimezone(self):
         class Test(xsd.ComplexType):
             datetime = xsd.Element(xsd.DateTime)
-        XML = '''<root><datetime>2011-06-30T00:19:00+0000Z</datetime></root>'''
+        XML = '''<root><datetime>2011-06-30T00:19:00+0000</datetime></root>'''
         test = Test.parsexml(XML)
         assert_equals(DateTime(2011, 6, 30, 0, 19, 0), test.datetime.replace(tzinfo=None))
 
@@ -45,7 +46,7 @@ class DateTest(SimpleTypeTestCase):
             datetime = xsd.Element(xsd.DateTime)
         XML = '''<root><datetime>2011-06-30T20:19:00+01:00</datetime></root>'''
         test = Test.parsexml(XML)
-        assert_equals(DateTime(2011, 6, 30, 19, 19, 0), test.datetime.astimezone(iso8601.UTC).replace(tzinfo=None))
+        assert_equals(DateTime(2011, 6, 30, 19, 19, 0), test.datetime.astimezone(UTC).replace(tzinfo=None))
 
     def test_can_correctly_determine_utc_offset(self):
         # Ensure that the DateTime type really uses the correct UTC offset

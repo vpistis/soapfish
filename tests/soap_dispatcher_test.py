@@ -2,11 +2,11 @@
 from __future__ import absolute_import
 
 from lxml import etree
+from pythonic_testcase import *
 
 from soapfish import wsa, xsd
 from soapfish.core import SOAPError, SOAPRequest, SOAPResponse
 from soapfish.compat import basestring
-from soapfish.lib.pythonic_testcase import *
 from soapfish.middlewares import ExceptionToSoapFault
 from soapfish.soap_dispatch import SOAPDispatcher
 from soapfish.testutil import echo_handler, echo_service, EchoInputHeader, EchoOutputHeader
@@ -254,6 +254,39 @@ class SOAPDispatcherTest(PythonicTestCase):
         dispatcher = SOAPDispatcher(echo_service())
         header = wsa.Header.parsexml('<Header><Invalid xmlns="http://www.w3.org/2005/08/addressing">/Action</Invalid></Header>')
         assert_raises(etree.DocumentInvalid, lambda: dispatcher._validate_header(header))
+
+    def test_evaluate_service_location(self):
+        handler, _ = echo_handler()
+        service = echo_service(handler)
+        service.location = '{scheme}://{host}/ws'
+        dispatcher = SOAPDispatcher(service)
+        request = SOAPRequest(dict(REQUEST_METHOD='GET', QUERY_STRING='wsdl',
+                                   HTTP_HOST='soap.example'), '')
+        response = dispatcher.dispatch(request)
+        self.assert_is_successful_response(response)
+        assert_not_contains('{scheme}', response.http_content.decode())
+        assert_not_contains('{http}', response.http_content.decode())
+
+    def test_service_bind_function(self):
+        handler, handler_state = echo_handler()
+        service = echo_service(handler)
+
+        @service.route('echoOperation')
+        def echo_func(request, input_):
+            handler_state.new_func_was_called = True
+            return handler(request, input_)
+
+        dispatcher = SOAPDispatcher(service)
+        soap_message = ('<ns1:echoRequest xmlns:ns1="http://soap.example/echo/types">'
+            '<value>foobar</value>'
+        '</ns1:echoRequest>')
+        request_message = self._wrap_with_soap_envelope(soap_message)
+        request = SOAPRequest(dict(SOAPACTION='echo', REQUEST_METHOD='POST'),
+                              request_message)
+        response = dispatcher.dispatch(request)
+
+        assert_true(handler_state.new_func_was_called)
+        self.assert_is_successful_response(response, handler_state)
 
     # --- custom assertions ---------------------------------------------------
 

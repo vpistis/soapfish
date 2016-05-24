@@ -1,9 +1,9 @@
 import unittest
 
 from lxml import etree
+from pythonic_testcase import *
 
 from soapfish import core, soap, soap11, soap12
-from soapfish.lib.pythonic_testcase import *
 
 SOAP11_ERROR_MESSAGE = """
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
@@ -142,6 +142,20 @@ class SOAPVersionTest(unittest.TestCase):
         xml = etree.fromstring(WSDL)
         soap_version = soap.SOAPVersion.get_version_from_xml(xml)
         assert_equals(soap.SOAPVersion.SOAP11, soap_version)
+
+    def test_get_version_soap11(self):
+        v = soap.SOAPVersion.get_version(soap11.ENVELOPE_NAMESPACE)
+        assert_equals(soap11.NAME, v.NAME)
+
+        v = soap.SOAPVersion.get_version(soap11.BINDING_NAMESPACE)
+        assert_equals(soap11.NAME, v.NAME)
+
+    def test_get_version_soap12(self):
+        v = soap.SOAPVersion.get_version(soap12.ENVELOPE_NAMESPACE)
+        assert_equals(soap12.NAME, v.NAME)
+
+        v = soap.SOAPVersion.get_version(soap12.BINDING_NAMESPACE)
+        assert_equals(soap12.NAME, v.NAME)
 
 
 if __name__ == "__main__":

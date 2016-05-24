@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 
 from datetime import timedelta as TimeDelta
-import httplib2
+import requests
 import logging
-import os
 import six
 
 from . import namespaces as ns
-from . import settings
 from .compat import urlparse, urlunparse
 
 
@@ -19,14 +17,7 @@ def open_document(path):
     logger.info('Opening document \'%s\'...' % path)
     # Handle documents available on the Internet:
     if path.startswith('http:'):
-        disable_validation = not os.path.exists(settings.CA_CERTIFICATE_FILE)
-        http = httplib2.Http(
-            ca_certs=settings.CA_CERTIFICATE_FILE,
-            disable_ssl_certificate_validation=disable_validation,
-            timeout=settings.REQUEST_TIMEOUT,
-        )
-        _, content = http.request(path)
-        return content
+        return requests.get(path).text
 
     # Attempt to open the document from the filesystem:
     else:
@@ -101,7 +92,7 @@ def url_template(url):
     http://example.net/ws/endpoint --> %s/ws/endpoint
     '''
     o = list(urlparse(url))
-    o[0:2] = ['%(scheme)s', '%(host)s']
+    o[0:2] = ['{scheme}', '{host}']
     return urlunparse(o)
 
 

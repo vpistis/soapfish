@@ -1,11 +1,15 @@
+import os
 import unittest
+import tempfile
 
 from lxml import etree
-import tempfile
+import six
+from pythonic_testcase import *
 
 from soapfish.xsd2py import generate_code_from_xsd
 from soapfish.wsdl2py import generate_code_from_wsdl
-from soapfish import  py2wsdl
+from soapfish import py2wsdl
+from soapfish.utils import open_document
 
 
 XSD = """
@@ -99,6 +103,34 @@ xmlns="http://flightdataservices.com/ops.xsd">
   </xsd:complexType>
   <xsd:element name="status" type="sns:status"/>
   <xsd:element name="ops" type="sns:ops"/>
+</xsd:schema>
+"""
+
+XSD_RESTRICTION = b"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema elementFormDefault="qualified" targetNamespace="http://example.com" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <xsd:complexType name="ComplexType">
+        <xsd:sequence>
+            <xsd:element name="RestrictedString">
+                <xsd:simpleType>
+                    <xsd:restriction base="xsd:string">
+                        <xsd:maxLength value="60" />
+                    </xsd:restriction>
+                </xsd:simpleType>
+            </xsd:element>
+        </xsd:sequence>
+    </xsd:complexType>
+</xsd:schema>
+"""
+
+XSD_LIST_PARAM = b"""<xsd:schema xmlns:sns="http://flightdataservices.com/ops.xsd"
+xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+targetNamespace="http://flightdataservices.com/ops.xsd"
+xmlns="http://flightdataservices.com/ops.xsd">
+  <xsd:complexType name="airport">
+    <xsd:sequence>
+      <xsd:element name="Items" type="xsd:String" minOccurs="1" maxOccurs="unbounded"></xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
 </xsd:schema>
 """
 
@@ -274,8 +306,50 @@ class CodeGenerationTest(unittest.TestCase):
         m['PutOpsPort_SERVICE'] = m.pop('PutOpsPortPort_SERVICE')
         if target == 'client':
             m['PutOpsPortServiceStub'] = m.pop('PutOpsPortPortServiceStub')
-        self.assertEqual(sorted(m), sorted(base))
+        assert_equals(sorted(m), sorted(base))
 
+    def test_relative_paths(self):
+        path = 'tests/assets/relative/relative.wsdl'
+        xml = open_document(path)
+        code = generate_code_from_wsdl(xml, 'server', cwd=os.path.dirname(path))
+        if six.PY3:
+            code = code.decode()
+        assert_contains('Schema2_Element', code)
+        assert_contains('Schema3_Element', code)
+        assert_equals(1, code.count('Schema3_Element'))
+
+    def test_import_same_namespace(self):
+        path = 'tests/assets/same_namespace/same_namespace.wsdl'
+        xml = open_document(path)
+        code = generate_code_from_wsdl(xml, 'server', cwd=os.path.dirname(path))
+        if six.PY3:
+            code = code.decode()
+        assert_contains('Schema1_Element', code)
+        assert_contains('Schema2_Element', code)
+
+    def test_schema_xsd_include(self):
+        path = 'tests/assets/include/include.wsdl'
+        xml = open_document(path)
+        code = generate_code_from_wsdl(xml, 'server', cwd=os.path.dirname(path))
+        if six.PY3:
+            code = code.decode()
+        assert_contains('Schema1_Element', code)
+
+    def test_schema_xsd_restriction(self):
+        xmlelement = etree.fromstring(XSD_RESTRICTION)
+        code = generate_code_from_xsd(xmlelement)
+        if six.PY3:
+            code = code.decode()
+        compile(code, 'restriction', 'exec')
+
+    def test_create_method_list_param(self):
+        xmlelement = etree.fromstring(XSD_LIST_PARAM)
+        code = generate_code_from_xsd(xmlelement)
+        if six.PY3:
+            code = code.decode()
+        assert_contains("def create(cls, Items):", code)
+        assert_contains("instance.Items = Items", code)
+        assert_not_contains("Itemss", code)
 
 if __name__ == "__main__":
     unittest.main()

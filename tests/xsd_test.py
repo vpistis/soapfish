@@ -1,10 +1,12 @@
+
+from decimal import Decimal
 import unittest
 
+import iso8601
 from lxml import etree
+from pythonic_testcase import *
 
 from soapfish import xsd, xsdspec
-from soapfish.lib import iso8601
-from soapfish.lib.pythonic_testcase import *
 
 
 class Aircraft(xsd.ComplexType):
@@ -184,6 +186,14 @@ class BooleanTypeTest(unittest.TestCase):
 
 
 class DecimalTypeTest(unittest.TestCase):
+
+    def test_python_decimal(self):
+
+        class Test(xsd.ComplexType):
+            float = xsd.Element(xsd.Decimal())
+
+        test = Test()
+        test.float = Decimal('2.2')
 
     def test_enumeration(self):
 
@@ -543,7 +553,7 @@ class XMLParsingTest(unittest.TestCase):
         self.assertEqual("IATA", flight.takeoff_airport.type)
         self.assertEqual("EGLL", flight.landing_airport.code)
         self.assertEqual("ICAO", flight.landing_airport.type)
-        self.assertEqual(iso8601.parse_date("2001-10-26T21:32:52z"), flight.takeoff_datetime)
+        self.assertEqual(iso8601.parse_date("2001-10-26T21:32:52Z"), flight.takeoff_datetime)
 
     LIST_XML = b"""<flight>
   <landing_airport>
