@@ -30,7 +30,7 @@ setup(
     version=soapfish.__version__,
     author=soapfish.__author__,
     author_email=soapfish.__email__,
-    url='https://github.com/FelixSchwarz/soapfish',
+    url='https://github.com/vpistis/soapfish',
     description='A SOAP library for Python',
     long_description=open('README.md').read() + open('CHANGES.txt').read() + open('TODO.txt').read(),
     download_url='',
@@ -51,7 +51,7 @@ setup(
     platforms=['OS Independent'],
     keywords=['SOAP', 'WSDL', 'web service'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - RC',
         'Environment :: Console',
         'Environment :: Web Environment',
         'Framework :: Django',
